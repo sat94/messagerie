@@ -106,13 +106,23 @@ pub async fn get_history(
                     // Si les infos sont vides, les récupérer depuis PostgreSQL
                     if conv_info.prenom.is_empty() || conv_info.age == 0 || conv_info.photo.is_empty() {
                         if let Ok(rows) = client.query(
-                            "SELECT \"firstName\" FROM users WHERE email = $1 LIMIT 1",
+                            "SELECT prenom, EXTRACT(YEAR FROM AGE(date_de_naissance))::int as age, audio FROM compte_compte WHERE username = $1 LIMIT 1",
                             &[&conv_info.username]
                         ).await {
                             if let Some(row) = rows.first() {
                                 if conv_info.prenom.is_empty() {
-                                    if let Ok(first_name) = row.try_get::<_, Option<String>>("firstName") {
-                                        conv_info.prenom = first_name.unwrap_or_default();
+                                    if let Ok(prenom) = row.try_get::<_, Option<String>>("prenom") {
+                                        conv_info.prenom = prenom.unwrap_or_default();
+                                    }
+                                }
+                                if conv_info.age == 0 {
+                                    if let Ok(age) = row.try_get::<_, Option<i32>>("age") {
+                                        conv_info.age = age.unwrap_or(0);
+                                    }
+                                }
+                                if conv_info.photo.is_empty() {
+                                    if let Ok(photo) = row.try_get::<_, Option<String>>("audio") {
+                                        conv_info.photo = photo.unwrap_or_default();
                                     }
                                 }
                             }
