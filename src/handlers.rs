@@ -98,6 +98,8 @@ pub async fn get_history(
                 }
             }
 
+
+
             let mut conversations: Vec<UserInfo> = conversations_map.into_values().collect();
             // Trier par timestamp décroissant (plus récent en premier)
             conversations.sort_by(|a, b| b.last_timestamp.cmp(&a.last_timestamp));
