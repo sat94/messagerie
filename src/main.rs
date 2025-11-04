@@ -73,6 +73,7 @@ async fn main() -> std::io::Result<()> {
             .route("/health", web::get().to(health_check))
             .route("/api/messages/history/{username}", web::get().to(handlers::get_history))
             .route("/api/messages/conversation/{user1}/{user2}", web::get().to(handlers::get_conversation))
+            .route("/api/messages/conversation/{user1}/{user2}", web::delete().to(handlers::delete_conversation))
     })
     .bind("0.0.0.0:3000")?
     .run()

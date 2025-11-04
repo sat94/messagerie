@@ -118,6 +118,43 @@ pub async fn get_conversation(
     }
 }
 
+pub async fn delete_conversation(
+    db: web::Data<Database>,
+    path: web::Path<(String, String)>,
+) -> HttpResponse {
+    let (user_a, user_b) = path.into_inner();
+    let messages_collection = db.collection::<mongodb::bson::Document>("messages");
+
+    let filter = doc! {
+        "$or": [
+            { "from": &user_a, "to": &user_b },
+            { "from": &user_b, "to": &user_a }
+        ]
+    };
+
+    match messages_collection.delete_many(filter, None).await {
+        Ok(result) => {
+            let deleted_count = result.deleted_count;
+
+            #[derive(serde::Serialize)]
+            struct DeleteResponse {
+                deleted_count: u64,
+            }
+
+            let response = DeleteResponse {
+                deleted_count,
+            };
+
+            HttpResponse::Ok().json(ApiResponse::ok(response))
+        }
+        Err(e) => {
+            log::error!("Erreur MongoDB: {}", e);
+            HttpResponse::InternalServerError()
+                .json(ApiResponse::<()>::err(format!("Erreur: {}", e)))
+        }
+    }
+}
+
 fn convert_doc_to_message(doc: mongodb::bson::Document) -> Result<Message, Box<dyn std::error::Error>> {
     let id = doc.get_object_id("_id").ok().map(|oid| oid.to_string());
     let from = doc.get_str("from").unwrap_or("").to_string();
