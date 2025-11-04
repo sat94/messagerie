@@ -31,50 +31,82 @@ pub async fn get_history(
     username: web::Path<String>,
 ) -> HttpResponse {
     let username = username.into_inner();
-    let conversations_collection = db.collection::<mongodb::bson::Document>("conversations");
+    let messages_collection = db.collection::<mongodb::bson::Document>("messages");
 
-    let filter = doc! { "user_id": &username };
+    // Récupérer tous les messages de l'utilisateur
+    let filter = doc! {
+        "$or": [
+            { "from": &username },
+            { "to": &username }
+        ]
+    };
 
-    match conversations_collection.find_one(filter, None).await {
-        Ok(Some(doc)) => {
-            let mut conversations = Vec::new();
+    match messages_collection.find(filter, None).await {
+        Ok(mut cursor) => {
+            use std::collections::HashMap;
+            let mut conversations_map: HashMap<String, UserInfo> = HashMap::new();
 
-            if let Some(convs) = doc.get_array("conversations").ok() {
-                for conv_doc in convs {
-                    if let Some(conv_obj) = conv_doc.as_document() {
-                        if let (Some(user), Some(prenom), Some(age), Some(photo), Some(last_msg), Some(last_ts)) = (
-                            conv_obj.get_str("username").ok(),
-                            conv_obj.get_str("prenom").ok(),
-                            conv_obj.get_i32("age").ok(),
-                            conv_obj.get_str("photo").ok(),
-                            conv_obj.get_str("last_message").ok(),
-                            conv_obj.get_str("last_timestamp").ok(),
-                        ) {
-                            conversations.push(UserInfo {
-                                username: user.to_string(),
-                                prenom: prenom.to_string(),
-                                age,
-                                photo: photo.to_string(),
-                                last_message: last_msg.to_string(),
-                                last_timestamp: last_ts.to_string(),
-                            });
+            // Parcourir tous les messages et construire les conversations
+            while let Ok(Some(msg_doc)) = cursor.try_next().await {
+                let from = msg_doc.get_str("from").unwrap_or("").to_string();
+                let to = msg_doc.get_str("to").unwrap_or("").to_string();
+                let message = msg_doc.get_str("message").unwrap_or("").to_string();
+                let timestamp = msg_doc.get_str("timestamp").unwrap_or("").to_string();
+
+                // Déterminer l'autre utilisateur
+                let other_user = if from == username { to } else { from };
+
+                // Mettre à jour le dernier message et timestamp
+                conversations_map.entry(other_user.clone())
+                    .and_modify(|conv| {
+                        conv.last_message = message.clone();
+                        conv.last_timestamp = timestamp.clone();
+                    })
+                    .or_insert_with(|| UserInfo {
+                        username: other_user.clone(),
+                        prenom: String::new(),
+                        age: 0,
+                        photo: String::new(),
+                        last_message: message,
+                        last_timestamp: timestamp,
+                    });
+            }
+
+            // Récupérer les infos de profil depuis la collection conversations
+            let conversations_collection = db.collection::<mongodb::bson::Document>("conversations");
+            let conv_filter = doc! { "user_id": &username };
+
+            if let Ok(Some(conv_doc)) = conversations_collection.find_one(conv_filter, None).await {
+                if let Some(convs) = conv_doc.get_array("conversations").ok() {
+                    for conv_doc in convs {
+                        if let Some(conv_obj) = conv_doc.as_document() {
+                            if let Some(user) = conv_obj.get_str("username").ok() {
+                                if let Some(conv_info) = conversations_map.get_mut(user) {
+                                    if let Some(prenom) = conv_obj.get_str("prenom").ok() {
+                                        conv_info.prenom = prenom.to_string();
+                                    }
+                                    if let Some(age) = conv_obj.get_i32("age").ok() {
+                                        conv_info.age = age;
+                                    }
+                                    if let Some(photo) = conv_obj.get_str("photo").ok() {
+                                        conv_info.photo = photo.to_string();
+                                    }
+                                }
+                            }
                         }
                     }
                 }
             }
+
+            let mut conversations: Vec<UserInfo> = conversations_map.into_values().collect();
+            // Trier par timestamp décroissant (plus récent en premier)
+            conversations.sort_by(|a, b| b.last_timestamp.cmp(&a.last_timestamp));
 
             let response = HistoryResponse {
                 username: username.clone(),
                 conversations,
             };
 
-            HttpResponse::Ok().json(ApiResponse::ok(response))
-        }
-        Ok(None) => {
-            let response = HistoryResponse {
-                username: username.clone(),
-                conversations: Vec::new(),
-            };
             HttpResponse::Ok().json(ApiResponse::ok(response))
         }
         Err(e) => {
