@@ -5,16 +5,21 @@ use futures_util::stream::TryStreamExt;
 use crate::{ApiResponse, Message};
 
 #[derive(serde::Serialize, serde::Deserialize)]
+pub struct UserInfo {
+    pub username: String,
+    pub prenom: String,
+    pub age: i32,
+    pub photo: String,
+}
+
+#[derive(serde::Serialize, serde::Deserialize)]
 pub struct HistoryResponse {
     pub username: String,
-    pub messages: Vec<Message>,
-    pub count: usize,
+    pub conversations: Vec<UserInfo>,
 }
 
 #[derive(serde::Serialize, serde::Deserialize)]
 pub struct ConversationResponse {
-    pub user1: String,
-    pub user2: String,
     pub messages: Vec<Message>,
     pub count: usize,
 }
@@ -24,31 +29,46 @@ pub async fn get_history(
     username: web::Path<String>,
 ) -> HttpResponse {
     let username = username.into_inner();
-    let collection = db.collection::<mongodb::bson::Document>("messages");
+    let conversations_collection = db.collection::<mongodb::bson::Document>("conversations");
 
-    let filter = doc! {
-        "$or": [
-            { "from": &username },
-            { "to": &username }
-        ]
-    };
+    let filter = doc! { "user_id": &username };
 
-    match collection.find(filter, None).await {
-        Ok(mut cursor) => {
-            let mut messages = Vec::new();
-            while let Ok(Some(doc)) = cursor.try_next().await {
-                if let Ok(msg) = convert_doc_to_message(doc) {
-                    messages.push(msg);
+    match conversations_collection.find_one(filter, None).await {
+        Ok(Some(doc)) => {
+            let mut conversations = Vec::new();
+
+            if let Some(convs) = doc.get_array("conversations").ok() {
+                for conv_doc in convs {
+                    if let Some(conv_obj) = conv_doc.as_document() {
+                        if let (Some(user), Some(prenom), Some(age), Some(photo)) = (
+                            conv_obj.get_str("username").ok(),
+                            conv_obj.get_str("prenom").ok(),
+                            conv_obj.get_i32("age").ok(),
+                            conv_obj.get_str("photo").ok(),
+                        ) {
+                            conversations.push(UserInfo {
+                                username: user.to_string(),
+                                prenom: prenom.to_string(),
+                                age,
+                                photo: photo.to_string(),
+                            });
+                        }
+                    }
                 }
             }
 
-            let count = messages.len();
             let response = HistoryResponse {
                 username: username.clone(),
-                messages,
-                count,
+                conversations,
             };
 
+            HttpResponse::Ok().json(ApiResponse::ok(response))
+        }
+        Ok(None) => {
+            let response = HistoryResponse {
+                username: username.clone(),
+                conversations: Vec::new(),
+            };
             HttpResponse::Ok().json(ApiResponse::ok(response))
         }
         Err(e) => {
@@ -64,7 +84,7 @@ pub async fn get_conversation(
     path: web::Path<(String, String)>,
 ) -> HttpResponse {
     let (user1, user2) = path.into_inner();
-    let collection = db.collection::<mongodb::bson::Document>("messages");
+    let messages_collection = db.collection::<mongodb::bson::Document>("messages");
 
     let filter = doc! {
         "$or": [
@@ -73,7 +93,7 @@ pub async fn get_conversation(
         ]
     };
 
-    match collection.find(filter, None).await {
+    match messages_collection.find(filter, None).await {
         Ok(mut cursor) => {
             let mut messages = Vec::new();
             while let Ok(Some(doc)) = cursor.try_next().await {
@@ -84,8 +104,6 @@ pub async fn get_conversation(
 
             let count = messages.len();
             let response = ConversationResponse {
-                user1: user1.clone(),
-                user2: user2.clone(),
                 messages,
                 count,
             };
