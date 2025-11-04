@@ -106,7 +106,10 @@ pub async fn get_history(
                     // Si les infos sont vides, les récupérer depuis PostgreSQL
                     if conv_info.prenom.is_empty() || conv_info.age == 0 || conv_info.photo.is_empty() {
                         if let Ok(rows) = client.query(
-                            "SELECT prenom, EXTRACT(YEAR FROM AGE(date_de_naissance))::int as age, audio FROM compte_compte WHERE username = $1 LIMIT 1",
+                            "SELECT cc.prenom, EXTRACT(YEAR FROM AGE(cc.date_de_naissance))::int as age, cp.photos
+                             FROM compte_compte cc
+                             LEFT JOIN compte_photo cp ON cc.id = cp.compte_id AND cp.type_photo = 'main'
+                             WHERE cc.username = $1 LIMIT 1",
                             &[&conv_info.username]
                         ).await {
                             if let Some(row) = rows.first() {
@@ -121,7 +124,7 @@ pub async fn get_history(
                                     }
                                 }
                                 if conv_info.photo.is_empty() {
-                                    if let Ok(photo) = row.try_get::<_, Option<String>>("audio") {
+                                    if let Ok(photo) = row.try_get::<_, Option<String>>("photos") {
                                         conv_info.photo = photo.unwrap_or_default();
                                     }
                                 }
