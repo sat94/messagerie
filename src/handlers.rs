@@ -2,6 +2,7 @@ use actix_web::{web, HttpResponse};
 use mongodb::{bson::doc, Database};
 use serde_json::json;
 use futures_util::stream::TryStreamExt;
+use std::sync::Arc;
 use crate::{ApiResponse, Message};
 
 #[derive(serde::Serialize, serde::Deserialize)]
@@ -28,6 +29,7 @@ pub struct ConversationResponse {
 
 pub async fn get_history(
     db: web::Data<Database>,
+    pg_client: web::Data<Option<Arc<tokio_postgres::Client>>>,
     username: web::Path<String>,
 ) -> HttpResponse {
     let username = username.into_inner();
@@ -98,7 +100,36 @@ pub async fn get_history(
                 }
             }
 
-
+            // Si PostgreSQL est disponible, récupérer les infos manquantes
+            if let Some(client) = pg_client.as_ref() {
+                for conv_info in conversations_map.values_mut() {
+                    // Si les infos sont vides, les récupérer depuis PostgreSQL
+                    if conv_info.prenom.is_empty() || conv_info.age == 0 || conv_info.photo.is_empty() {
+                        if let Ok(rows) = client.query(
+                            "SELECT first_name, age, profile_picture FROM users WHERE username = $1",
+                            &[&conv_info.username]
+                        ).await {
+                            if let Some(row) = rows.first() {
+                                if conv_info.prenom.is_empty() {
+                                    if let Ok(first_name) = row.try_get::<_, Option<String>>("first_name") {
+                                        conv_info.prenom = first_name.unwrap_or_default();
+                                    }
+                                }
+                                if conv_info.age == 0 {
+                                    if let Ok(age) = row.try_get::<_, Option<i32>>("age") {
+                                        conv_info.age = age.unwrap_or(0);
+                                    }
+                                }
+                                if conv_info.photo.is_empty() {
+                                    if let Ok(photo) = row.try_get::<_, Option<String>>("profile_picture") {
+                                        conv_info.photo = photo.unwrap_or_default();
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
 
             let mut conversations: Vec<UserInfo> = conversations_map.into_values().collect();
             // Trier par timestamp décroissant (plus récent en premier)

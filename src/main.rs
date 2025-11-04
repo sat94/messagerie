@@ -3,6 +3,7 @@ use actix_cors::Cors;
 use mongodb::{Client, Database};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
+use std::sync::Arc;
 
 mod handlers;
 
@@ -58,6 +59,27 @@ async fn main() -> std::io::Result<()> {
     let db = client.database("meetvoice_gateway");
     let db_data = web::Data::new(db);
 
+    // PostgreSQL connection (optional)
+    let postgres_uri = std::env::var("DATABASE_URL")
+        .unwrap_or_else(|_| "postgres://meetvoice_api_user:meetvoice_api_password@192.168.1.42:5432/meetvoice_api".to_string());
+
+    let pg_client = match tokio_postgres::connect(&postgres_uri, tokio_postgres::tls::NoTls).await {
+        Ok((client, connection)) => {
+            log::info!("✅ PostgreSQL connecté");
+            tokio::spawn(async move {
+                if let Err(e) = connection.await {
+                    log::error!("PostgreSQL connection error: {}", e);
+                }
+            });
+            Some(Arc::new(client))
+        }
+        Err(e) => {
+            log::warn!("⚠️  PostgreSQL non disponible: {}. Les infos de profil seront récupérées uniquement depuis MongoDB.", e);
+            None
+        }
+    };
+    let pg_data = web::Data::new(pg_client);
+
     log::info!("🚀 Serveur démarrant sur http://0.0.0.0:3000");
 
     HttpServer::new(move || {
@@ -70,6 +92,7 @@ async fn main() -> std::io::Result<()> {
         App::new()
             .wrap(cors)
             .app_data(db_data.clone())
+            .app_data(pg_data.clone())
             .route("/health", web::get().to(health_check))
             .route("/api/messages/history/{username}", web::get().to(handlers::get_history))
             .route("/api/messages/conversation/{user1}/{user2}", web::get().to(handlers::get_conversation))
