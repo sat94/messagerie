@@ -10,6 +10,8 @@ pub struct UserInfo {
     pub prenom: String,
     pub age: i32,
     pub photo: String,
+    pub last_message: String,
+    pub last_timestamp: String,
 }
 
 #[derive(serde::Serialize, serde::Deserialize)]
@@ -40,17 +42,21 @@ pub async fn get_history(
             if let Some(convs) = doc.get_array("conversations").ok() {
                 for conv_doc in convs {
                     if let Some(conv_obj) = conv_doc.as_document() {
-                        if let (Some(user), Some(prenom), Some(age), Some(photo)) = (
+                        if let (Some(user), Some(prenom), Some(age), Some(photo), Some(last_msg), Some(last_ts)) = (
                             conv_obj.get_str("username").ok(),
                             conv_obj.get_str("prenom").ok(),
                             conv_obj.get_i32("age").ok(),
                             conv_obj.get_str("photo").ok(),
+                            conv_obj.get_str("last_message").ok(),
+                            conv_obj.get_str("last_timestamp").ok(),
                         ) {
                             conversations.push(UserInfo {
                                 username: user.to_string(),
                                 prenom: prenom.to_string(),
                                 age,
                                 photo: photo.to_string(),
+                                last_message: last_msg.to_string(),
+                                last_timestamp: last_ts.to_string(),
                             });
                         }
                     }
