@@ -60,8 +60,16 @@ async fn main() -> std::io::Result<()> {
     let db_data = web::Data::new(db);
 
     // PostgreSQL connection (optional)
-    let postgres_uri = std::env::var("DATABASE_URL")
-        .unwrap_or_else(|_| "postgres://meetvoice_api_user:meetvoice_api_password@192.168.1.42:5432/meetvoice_api".to_string());
+    let db_user = std::env::var("DB_USER").unwrap_or_else(|_| "meetvoice_api_user".to_string());
+    let db_password = std::env::var("DB_PASSWORD").unwrap_or_else(|_| "meetvoice_api_2025".to_string());
+    let db_host = std::env::var("DB_HOST").unwrap_or_else(|_| "localhost".to_string());
+    let db_port = std::env::var("DB_PORT").unwrap_or_else(|_| "5432".to_string());
+    let db_name = std::env::var("DB_NAME").unwrap_or_else(|_| "meetvoice_api".to_string());
+
+    let postgres_uri = format!(
+        "postgres://{}:{}@{}:{}/{}",
+        db_user, db_password, db_host, db_port, db_name
+    );
 
     let pg_client = match tokio_postgres::connect(&postgres_uri, tokio_postgres::tls::NoTls).await {
         Ok((client, connection)) => {

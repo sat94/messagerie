@@ -5,10 +5,16 @@ services:
       - "8999:3000"
     environment:
       - MONGO_URI=mongodb://gateway_user:gateway_password_2025@192.168.1.42:27019/meetvoice_gateway?authSource=admin
-      - DATABASE_URL=postgres://meetvoice_api_user:meetvoice_api_password@192.168.1.42:5432/meetvoice_api
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_HOST=host.docker.internal
+      - DB_PORT=${DB_PORT}
+      - DB_NAME=${DB_NAME}
       - RUST_LOG=info
     networks:
       - messagerie-net
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
 
 networks:
   messagerie-net:
