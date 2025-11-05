@@ -9,7 +9,7 @@ use crate::{ApiResponse, Message};
 pub struct UserInfo {
     pub username: String,
     pub prenom: String,
-    pub age: i32,
+    pub date_de_naissance: String,
     pub photo: String,
     pub last_message: String,
     pub last_timestamp: String,
@@ -67,7 +67,7 @@ pub async fn get_history(
                     .or_insert_with(|| UserInfo {
                         username: other_user.clone(),
                         prenom: String::new(),
-                        age: 0,
+                        date_de_naissance: String::new(),
                         photo: String::new(),
                         last_message: message,
                         last_timestamp: timestamp,
@@ -87,8 +87,8 @@ pub async fn get_history(
                                     if let Some(prenom) = conv_obj.get_str("prenom").ok() {
                                         conv_info.prenom = prenom.to_string();
                                     }
-                                    if let Some(age) = conv_obj.get_i32("age").ok() {
-                                        conv_info.age = age;
+                                    if let Some(dob) = conv_obj.get_str("date_de_naissance").ok() {
+                                        conv_info.date_de_naissance = dob.to_string();
                                     }
                                     if let Some(photo) = conv_obj.get_str("photo").ok() {
                                         conv_info.photo = photo.to_string();
@@ -104,9 +104,9 @@ pub async fn get_history(
             if let Some(client) = pg_client.as_ref() {
                 for conv_info in conversations_map.values_mut() {
                     // Si les infos sont vides, les récupérer depuis PostgreSQL
-                    if conv_info.prenom.is_empty() || conv_info.age == 0 || conv_info.photo.is_empty() {
+                    if conv_info.prenom.is_empty() || conv_info.date_de_naissance.is_empty() || conv_info.photo.is_empty() {
                         if let Ok(rows) = client.query(
-                            "SELECT cc.prenom, EXTRACT(YEAR FROM AGE(cc.date_de_naissance))::int as age,
+                            "SELECT cc.prenom, cc.date_de_naissance::text,
                                     COALESCE(
                                         (SELECT cp.photos FROM compte_photo cp WHERE cp.compte_id = cc.id AND cp.type_photo = 'principale' LIMIT 1),
                                         (SELECT cp.photos FROM compte_photo cp WHERE cp.compte_id = cc.id ORDER BY cp.ordre ASC LIMIT 1)
@@ -121,9 +121,11 @@ pub async fn get_history(
                                         conv_info.prenom = prenom.unwrap_or_default();
                                     }
                                 }
-                                if conv_info.age == 0 {
-                                    if let Ok(age) = row.try_get::<_, Option<i32>>("age") {
-                                        conv_info.age = age.unwrap_or(0);
+                                if conv_info.date_de_naissance.is_empty() {
+                                    if let Ok(dob) = row.try_get::<_, Option<String>>("date_de_naissance") {
+                                        if let Some(date_str) = dob {
+                                            conv_info.date_de_naissance = date_str;
+                                        }
                                     }
                                 }
                                 if conv_info.photo.is_empty() {
