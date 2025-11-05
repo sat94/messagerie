@@ -241,6 +241,7 @@ fn convert_doc_to_message(doc: mongodb::bson::Document) -> Result<Message, Box<d
     let message = doc.get_str("message").unwrap_or("").to_string();
     let timestamp = doc.get_str("timestamp").unwrap_or("").to_string();
     let read = doc.get_bool("read").unwrap_or(false);
+    let is_connect = doc.get_bool("is_connect").unwrap_or(false);
 
     Ok(Message {
         id,
@@ -249,6 +250,7 @@ fn convert_doc_to_message(doc: mongodb::bson::Document) -> Result<Message, Box<d
         message,
         timestamp,
         read,
+        is_connect,
     })
 }
 

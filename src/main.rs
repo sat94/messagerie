@@ -17,6 +17,8 @@ pub struct Message {
     pub timestamp: String,
     #[serde(default)]
     pub read: bool,
+    #[serde(default)]
+    pub is_connect: bool,
 }
 
 #[derive(Debug, Serialize)]
