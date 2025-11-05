@@ -106,9 +106,12 @@ pub async fn get_history(
                     // Si les infos sont vides, les récupérer depuis PostgreSQL
                     if conv_info.prenom.is_empty() || conv_info.age == 0 || conv_info.photo.is_empty() {
                         if let Ok(rows) = client.query(
-                            "SELECT cc.prenom, EXTRACT(YEAR FROM AGE(cc.date_de_naissance))::int as age, cp.photos
+                            "SELECT cc.prenom, EXTRACT(YEAR FROM AGE(cc.date_de_naissance))::int as age,
+                                    COALESCE(
+                                        (SELECT cp.photos FROM compte_photo cp WHERE cp.compte_id = cc.id AND cp.type_photo = 'principale' LIMIT 1),
+                                        (SELECT cp.photos FROM compte_photo cp WHERE cp.compte_id = cc.id ORDER BY cp.ordre ASC LIMIT 1)
+                                    ) as photos
                              FROM compte_compte cc
-                             LEFT JOIN compte_photo cp ON cc.id = cp.compte_id AND cp.type_photo = 'main'
                              WHERE cc.username = $1 LIMIT 1",
                             &[&conv_info.username]
                         ).await {
