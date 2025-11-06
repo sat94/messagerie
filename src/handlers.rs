@@ -201,14 +201,14 @@ pub async fn delete_conversation(
     db: web::Data<Database>,
     path: web::Path<(String, String)>,
 ) -> HttpResponse {
-    let (user_a, user_b) = path.into_inner();
+    let (requester, other_user) = path.into_inner();
     let messages_collection = db.collection::<mongodb::bson::Document>("messages");
 
+    // Supprimer uniquement les messages de l'utilisateur qui fait la requête
+    // Respecte la RGPD : chaque utilisateur ne supprime que ses propres messages
     let filter = doc! {
-        "$or": [
-            { "from": &user_a, "to": &user_b },
-            { "from": &user_b, "to": &user_a }
-        ]
+        "from": &requester,
+        "to": &other_user
     };
 
     match messages_collection.delete_many(filter, None).await {
