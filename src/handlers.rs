@@ -254,3 +254,180 @@ fn convert_doc_to_message(doc: mongodb::bson::Document) -> Result<Message, Box<d
     })
 }
 
+// ============ NOUVEAUX ENDPOINTS ============
+
+// 1. POST /api/notifications/system-message
+#[derive(serde::Deserialize)]
+pub struct CreateSystemNotificationRequest {
+    pub to: String,
+    pub title: String,
+    pub message: String,
+    pub priority: Option<String>,
+    pub action_url: Option<String>,
+    pub created_by: String,
+}
+
+pub async fn create_system_notification(
+    db: web::Data<Database>,
+    req: web::Json<CreateSystemNotificationRequest>,
+) -> HttpResponse {
+    let notifications_collection = db.collection::<mongodb::bson::Document>("system_notifications");
+
+    let now = chrono::Utc::now().to_rfc3339();
+
+    let doc = doc! {
+        "from": "meet-voice.fr",
+        "to": &req.to,
+        "type": "system",
+        "title": &req.title,
+        "message": &req.message,
+        "timestamp": &now,
+        "read": false,
+        "priority": req.priority.as_deref().unwrap_or("normal"),
+        "action_url": &req.action_url,
+        "created_by": &req.created_by,
+    };
+
+    match notifications_collection.insert_one(doc, None).await {
+        Ok(result) => {
+            HttpResponse::Created().json(ApiResponse::ok(json!({
+                "id": result.inserted_id.to_string(),
+                "message": "Notification créée avec succès"
+            })))
+        }
+        Err(e) => {
+            log::error!("Erreur MongoDB: {}", e);
+            HttpResponse::InternalServerError()
+                .json(ApiResponse::<()>::err(format!("Erreur: {}", e)))
+        }
+    }
+}
+
+// 2. POST /api/requests/group-access
+#[derive(serde::Deserialize)]
+pub struct CreateGroupAccessRequest {
+    pub requester_username: String,
+    pub group_id: String,
+    pub group_name: String,
+    pub group_owner: String,
+}
+
+pub async fn create_group_access_request(
+    db: web::Data<Database>,
+    req: web::Json<CreateGroupAccessRequest>,
+) -> HttpResponse {
+    let requests_collection = db.collection::<mongodb::bson::Document>("group_access_requests");
+
+    let now = chrono::Utc::now().to_rfc3339();
+
+    let doc = doc! {
+        "requester_username": &req.requester_username,
+        "group_id": &req.group_id,
+        "group_name": &req.group_name,
+        "group_owner": &req.group_owner,
+        "status": "pending",
+        "timestamp": &now,
+        "response_timestamp": null,
+        "response_message": null,
+    };
+
+    match requests_collection.insert_one(doc, None).await {
+        Ok(result) => {
+            HttpResponse::Created().json(ApiResponse::ok(json!({
+                "id": result.inserted_id.to_string(),
+                "message": "Demande d'accès au groupe créée"
+            })))
+        }
+        Err(e) => {
+            log::error!("Erreur MongoDB: {}", e);
+            HttpResponse::InternalServerError()
+                .json(ApiResponse::<()>::err(format!("Erreur: {}", e)))
+        }
+    }
+}
+
+// 3. POST /api/requests/private-photos-permission
+#[derive(serde::Deserialize)]
+pub struct CreatePhotoPermissionRequest {
+    pub requester_username: String,
+    pub target_username: String,
+}
+
+pub async fn create_photo_permission_request(
+    db: web::Data<Database>,
+    req: web::Json<CreatePhotoPermissionRequest>,
+) -> HttpResponse {
+    let requests_collection = db.collection::<mongodb::bson::Document>("photo_permission_requests");
+
+    let now = chrono::Utc::now().to_rfc3339();
+
+    let doc = doc! {
+        "requester_username": &req.requester_username,
+        "target_username": &req.target_username,
+        "status": "pending",
+        "timestamp": &now,
+        "response_timestamp": null,
+        "response_message": null,
+        "permission_expires_at": null,
+    };
+
+    match requests_collection.insert_one(doc, None).await {
+        Ok(result) => {
+            HttpResponse::Created().json(ApiResponse::ok(json!({
+                "id": result.inserted_id.to_string(),
+                "message": "Demande de permission photos créée"
+            })))
+        }
+        Err(e) => {
+            log::error!("Erreur MongoDB: {}", e);
+            HttpResponse::InternalServerError()
+                .json(ApiResponse::<()>::err(format!("Erreur: {}", e)))
+        }
+    }
+}
+
+// 4. POST /api/requests/event-participation
+#[derive(serde::Deserialize)]
+pub struct CreateEventParticipationRequest {
+    pub requester_username: String,
+    pub event_id: String,
+    pub event_name: String,
+    pub event_creator: String,
+    pub participation_role: Option<String>,
+}
+
+pub async fn create_event_participation_request(
+    db: web::Data<Database>,
+    req: web::Json<CreateEventParticipationRequest>,
+) -> HttpResponse {
+    let requests_collection = db.collection::<mongodb::bson::Document>("event_participation_requests");
+
+    let now = chrono::Utc::now().to_rfc3339();
+
+    let doc = doc! {
+        "requester_username": &req.requester_username,
+        "event_id": &req.event_id,
+        "event_name": &req.event_name,
+        "event_creator": &req.event_creator,
+        "status": "pending",
+        "timestamp": &now,
+        "response_timestamp": null,
+        "response_message": null,
+        "participation_role": req.participation_role.as_deref().unwrap_or("participant"),
+    };
+
+    match requests_collection.insert_one(doc, None).await {
+        Ok(result) => {
+            HttpResponse::Created().json(ApiResponse::ok(json!({
+                "id": result.inserted_id.to_string(),
+                "message": "Demande de participation créée"
+            })))
+        }
+        Err(e) => {
+            log::error!("Erreur MongoDB: {}", e);
+            HttpResponse::InternalServerError()
+                .json(ApiResponse::<()>::err(format!("Erreur: {}", e)))
+        }
+    }
+}
+

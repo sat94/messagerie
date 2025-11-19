@@ -21,6 +21,65 @@ pub struct Message {
     pub is_connect: bool,
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+pub struct SystemNotification {
+    #[serde(rename = "_id", skip_serializing_if = "Option::is_none")]
+    pub id: Option<String>,
+    pub from: String,
+    pub to: String,
+    pub r#type: String,
+    pub title: String,
+    pub message: String,
+    pub timestamp: String,
+    #[serde(default)]
+    pub read: bool,
+    pub priority: String,
+    pub action_url: Option<String>,
+    pub created_by: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct GroupAccessRequest {
+    #[serde(rename = "_id", skip_serializing_if = "Option::is_none")]
+    pub id: Option<String>,
+    pub requester_username: String,
+    pub group_id: String,
+    pub group_name: String,
+    pub group_owner: String,
+    pub status: String,
+    pub timestamp: String,
+    pub response_timestamp: Option<String>,
+    pub response_message: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct PhotoPermissionRequest {
+    #[serde(rename = "_id", skip_serializing_if = "Option::is_none")]
+    pub id: Option<String>,
+    pub requester_username: String,
+    pub target_username: String,
+    pub status: String,
+    pub timestamp: String,
+    pub response_timestamp: Option<String>,
+    pub response_message: Option<String>,
+    pub permission_expires_at: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct EventParticipationRequest {
+    #[serde(rename = "_id", skip_serializing_if = "Option::is_none")]
+    pub id: Option<String>,
+    pub requester_username: String,
+    pub event_id: String,
+    pub event_name: String,
+    pub event_creator: String,
+    pub status: String,
+    pub timestamp: String,
+    pub response_timestamp: Option<String>,
+    pub response_message: Option<String>,
+    pub participation_role: String,
+}
+
 #[derive(Debug, Serialize)]
 pub struct ApiResponse<T> {
     pub success: bool,
@@ -107,6 +166,11 @@ async fn main() -> std::io::Result<()> {
             .route("/api/messages/history/{username}", web::get().to(handlers::get_history))
             .route("/api/messages/conversation/{user1}/{user2}", web::get().to(handlers::get_conversation))
             .route("/api/messages/conversation/{user1}/{user2}", web::delete().to(handlers::delete_conversation))
+            // Nouveaux endpoints
+            .route("/api/notifications/system-message", web::post().to(handlers::create_system_notification))
+            .route("/api/requests/group-access", web::post().to(handlers::create_group_access_request))
+            .route("/api/requests/private-photos-permission", web::post().to(handlers::create_photo_permission_request))
+            .route("/api/requests/event-participation", web::post().to(handlers::create_event_participation_request))
     })
     .bind("0.0.0.0:3000")?
     .run()
