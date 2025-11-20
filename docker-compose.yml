@@ -1,10 +1,29 @@
 services:
+  mongodb:
+    image: mongo:latest
+    container_name: messagerie-mongodb
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: gateway_user
+      MONGO_INITDB_ROOT_PASSWORD: gateway_password_2025
+      MONGO_INITDB_DATABASE: meetvoice_gateway
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+    networks:
+      - messagerie-net
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/test --quiet
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   api:
     build: .
     ports:
       - "8999:3000"
     environment:
-      - MONGO_URI=mongodb://gateway_user:gateway_password_2025@192.168.1.42:27019/meetvoice_gateway?authSource=admin
+      - MONGO_URI=mongodb://gateway_user:gateway_password_2025@mongodb:27017/meetvoice_gateway?authSource=admin
       - DB_USER=${DB_USER}
       - DB_PASSWORD=${DB_PASSWORD}
       - DB_HOST=host.docker.internal
@@ -15,8 +34,14 @@ services:
       - messagerie-net
     extra_hosts:
       - "host.docker.internal:host-gateway"
+    depends_on:
+      mongodb:
+        condition: service_healthy
 
 networks:
   messagerie-net:
     driver: bridge
+
+volumes:
+  mongodb_data:
 
